@@ -113,6 +113,12 @@
                 display: block;
             }
         }
+
+        #current-board-name:focus {
+            outline: 2px solid #3b82f6;
+            border-radius: 4px;
+            padding: 0 4px;
+        }
     </style>
     <script>
         tailwind.config = {
@@ -195,15 +201,23 @@
             <header class="h-16 border-b border-slate-200 dark:border-slate-800 glass-effect flex items-center justify-between px-4 md:px-6 shrink-0 z-40">
                 <div class="flex items-center gap-3">
                     <button onclick="app.toggleSidebar()" class="lg:hidden p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition"><i data-lucide="menu" size="20"></i></button>
-                    <div class="relative group">
-                        <button class="flex flex-col items-start text-left">
+                    <div class="relative">
+                        <div class="flex flex-col items-start text-left">
                             <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Espacio de Trabajo</span>
-                            <h2 id="current-board-name" class="text-xs md:text-sm font-bold text-slate-800 dark:text-white flex items-center gap-1">
-                                Cargando...
-                                <i data-lucide="chevron-down" size="14"></i>
-                            </h2>
-                        </button>
-                        <div id="board-list-dropdown" class="absolute top-full left-0 mt-2 w-56 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl hidden group-hover:block p-2 animate-slide"></div>
+                            <div class="flex items-center gap-2">
+                                <h2 id="current-board-name" 
+                                    contenteditable="true" 
+                                    onblur="app.updateBoardName(this.innerText)"
+                                    onkeydown="if(event.key==='Enter'){event.preventDefault(); this.blur();}"
+                                    class="text-xs md:text-sm font-bold text-slate-800 dark:text-white min-w-[50px]">
+                                    Cargando...
+                                </h2>
+                                <button onclick="app.toggleBoardDropdown(event)" class="text-slate-400 hover:text-blue-500 transition">
+                                    <i data-lucide="chevron-down" size="14"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div id="board-list-dropdown" class="absolute top-full left-0 mt-2 w-56 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl hidden z-50 p-2 animate-slide"></div>
                     </div>
                 </div>
                 
@@ -402,6 +416,10 @@
                     if (!e.target.closest('#stats-dropdown-container')) {
                         document.getElementById('stats-period-dropdown')?.classList.remove('show');
                     }
+                    // Cierra dropdown de tableros si se hace clic fuera
+                    if (!e.target.closest('.relative')) {
+                        document.getElementById('board-list-dropdown')?.classList.add('hidden');
+                    }
                 });
             },
 
@@ -458,21 +476,41 @@
                 setTimeout(() => toast.classList.replace('translate-y-0', 'translate-y-32'), 3000);
             },
 
+            // BOARD DROPDOWN LOGIC
+            toggleBoardDropdown(event) {
+                event.stopPropagation();
+                const dropdown = document.getElementById('board-list-dropdown');
+                dropdown.classList.toggle('hidden');
+            },
+
+            updateBoardName(newName) {
+                const cleanName = newName.trim();
+                if (!cleanName) return;
+                const board = this.boards.find(b => b.id === this.currentBoardId);
+                if (board) {
+                    board.name = cleanName;
+                    this.saveData();
+                    this.renderBoardList();
+                }
+            },
+
             renderBoardList() {
                 const list = document.getElementById('board-list-dropdown');
                 const activeBoard = this.boards.find(b => b.id === this.currentBoardId) || this.boards[0];
-                document.getElementById('current-board-name').innerHTML = `${activeBoard.name} <i data-lucide="chevron-down" size="14"></i>`;
+                document.getElementById('current-board-name').innerText = activeBoard.name;
                 
                 list.innerHTML = `
                     <p class="text-[9px] font-bold text-slate-400 uppercase p-2 border-b dark:border-slate-700">Mis Proyectos</p>
-                    ${this.boards.map(b => `
-                        <div onclick="app.switchBoard('${b.id}')" class="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer transition ${b.id === this.currentBoardId ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600' : 'text-slate-600 dark:text-slate-400'}">
-                            <span class="text-xs font-bold">${b.name}</span>
-                            ${b.id === this.currentBoardId ? '<i data-lucide="check" size="12"></i>' : ''}
-                        </div>
-                    `).join('')}
-                    <button onclick="app.createNewBoard()" class="w-full mt-2 p-3 text-left text-xs font-bold text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/10 rounded-xl flex items-center gap-2">
-                        <i data-lucide="plus" size="14"></i> Crear nuevo
+                    <div class="max-h-48 overflow-y-auto custom-scrollbar">
+                        ${this.boards.map(b => `
+                            <div onclick="app.switchBoard('${b.id}')" class="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer transition ${b.id === this.currentBoardId ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600' : 'text-slate-600 dark:text-slate-400'}">
+                                <span class="text-xs font-bold truncate max-w-[150px]">${b.name}</span>
+                                ${b.id === this.currentBoardId ? '<i data-lucide="check" size="12"></i>' : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                    <button onclick="app.createNewBoard(event)" class="w-full mt-2 p-3 text-left text-xs font-bold text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/10 rounded-xl flex items-center gap-2">
+                        <i data-lucide="plus" size="14"></i> Crear nuevo tablero
                     </button>
                 `;
                 lucide.createIcons();
@@ -483,14 +521,16 @@
                 this.saveData();
                 this.renderBoardList();
                 this.renderKanban();
+                document.getElementById('board-list-dropdown').classList.add('hidden');
                 if(this.currentTab === 'calendar') this.renderCalendar();
             },
 
-            createNewBoard() {
-                const name = prompt("Nombre del tablero:");
-                if (name) {
+            createNewBoard(event) {
+                event.stopPropagation();
+                const name = prompt("Nombre del nuevo tablero:");
+                if (name && name.trim()) {
                     const id = 'b_' + Date.now();
-                    this.boards.push({ id, name });
+                    this.boards.push({ id, name: name.trim() });
                     this.switchBoard(id);
                 }
             },
